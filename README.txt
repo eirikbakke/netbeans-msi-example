@@ -29,4 +29,9 @@ and replace MSI_PRODUCT_ID with a freshly generated random UUID.
 
 Some basic NetBeans logo graphics have been included in the banner.bmp and
 dialog.bmp files. These are used for branding in the MSI installer wizard
-dialog.
+dialog. Note that HiDPI-resolution branding images are _not_ supported by MSI.
+
+In its current configuration, the generated installer defaults to a per-user
+installation, i.e. one that does _not_ require Administrator rights. There are
+ways to change this, in NetBeans.wxs, but I arrived at the current approach
+after a lot of experimentation, and recommend it.
