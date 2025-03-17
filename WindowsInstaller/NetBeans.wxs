@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<!-- Based on the example file in
+       https://www.firegiant.com/system/files/samples/SampleUpgrade.zip
+     from the WiX Toolset tutorial:
+       https://www.firegiant.com/wix/tutorial/upgrades-and-modularization/checking-for-oldies/
+-->
+<!-- Keep the windows-1252 codepage references from the tutorial; it seems safest given the age of
+     the MSI format. "UTF-7 and UTF-8 are not officially supported because of user interface issues.
+     Unicode is not supported."
+        https://wixtoolset.org/docs/v3/overview/codepage/ -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <!-- I could include an MsiPatchCertificate entry here. But we install to the user directory by
+       default, and I don't anticipate patch updates in any case.
+         https://learn.microsoft.com/en-us/windows/win32/msi/authoring-a-fully-verified-signed-installation
+         https://learn.microsoft.com/en-us/windows/win32/msi/msipatchcertificate-table -->
+  <!-- For "major upgrades", "Change everything: Version attribute, Product and Package GUIDs."
+       And since I'm changing the product ID every time, including the version number in the product
+       name seems the most consistent. -->
+  <!-- "For the Version attribute, use the standard major.minor.build format. Windows Installer will
+       ignore an eventual fourth field, .revision as it provides other means to differentiate
+       revisions."
+         https://www.firegiant.com/wix/tutorial/getting-started/the-software-package/ -->
+  <!-- Omit the version number in the product name. It looks cleaner. -->
+  <!-- Note: The UpgradeCode shown here was generated fresh for the netbeans-msi repo example. -->
+  <Product Name="NetBeans" Id="$(var.productID)" UpgradeCode="ba450267-ec6c-44da-97c1-a40a8c9706e5"
+      Language="1033" Codepage="1252" Version="$(var.netbeansVersion)" Manufacturer="DistributorGoesHere Inc.">
+
+    <!-- "Use of [the Platform] attribute is discouraged; instead, specify the -arch switch at the
+         candle.exe command line"
+           https://wixtoolset.org/docs/v3/xsd/wix/package/ -->
+    <!-- Don't set InstallScope="perUser" or InstallPrivileges="limited" here; we set ALLUSERS and
+         MSIINSTALLPERUSER explicitly instead (see below). This allows installation without admin
+         privileges in the default case, while allowing per-machine install with a UAC dialog via
+         msiexec if necessary. About InstallScope:
+           https://www.joyofsetup.com/2008/04/01/new-wix-feature-setting-package-installation-scope/ -->
+    <!-- Set InstallerVersion="400" to avoid ICE66 when validating with Orca. -->
+    <Package Id="*" Keywords="Installer" Description="NetBeans is an open source IDE for Java, JavaScript, PHP, HTML5, CSS, and more."
+        Comments="Apache is a registered trademark of the Apache Software Foundation" Manufacturer="DistributorGoesHere Inc."
+        InstallerVersion="400" Languages="1033" Compressed="yes" SummaryCodepage="1252"
+        ReadOnly="yes"/>
+
+    <!-- Configure the package per the "Single Package Authoring" recommendations, with per-user
+         installation being the default. Don't complicate the setup wizard UI with an option of
+         per-machine installation; if some IT department really needs this, they can do
+         "msiexec ALLUSERS=1 /i" from the command-line.
+           https://learn.microsoft.com/en-us/windows/win32/msi/single-package-authoring
+
+         (If I end up documenting the msiexec-based per-machine install option, prefer setting
+         ALLUSERS=1 rather than setting MSIINSTALLPERUSER to the empty string, since either form
+         are valid but only the former has Google hits on IT forums. Setting ALLUSERS=1 will make
+         the installer default to "C:\Program Files\NetBeans" and show the UAC prompt at the right
+         time.)
+
+         Some WiX users have complained about the unpredictability of the ALLUSERS=2 setting, but
+         this was probably from the pre Windows 7 era.
+           https://stackoverflow.com/questions/458857/how-to-make-better-use-of-msi-files/1055861
+           https://www.mail-archive.com/wix-users@lists.sourceforge.net/msg07105.html
+    -->
+    <!-- The ALLUSERS property is mentioned as default-secure in the "Restricted Public Properties"
+         documentation page, and should be user-configurable, so I think it's most correct to set
+         Secure="yes" here. Do the same for MSIINSTALLPERUSER.
+           https://learn.microsoft.com/en-us/windows/win32/msi/restricted-public-properties -->
+    <Property Id="ALLUSERS" Value="2" Secure="yes"/>
+    <Property Id="MSIINSTALLPERUSER" Value="1" Secure="yes"/>
+    <!-- This property corresponds to the "UAC compliant" checkbox in View->Summary Information in
+         Orca. It is also enabled if InstallScope="perUser" is set on the Package element. But
+         turning it on makes the UAC dialog pop up on Uninstall even for per-user installations, and
+         does not appear to have any other benefits. So leave it off. (Could be the same issue as
+         reported in https://github.com/wixtoolset/issues/issues/5357 , although the UAC dialog
+         popped up even in the legacy Control Panel app for me.)-->
+    <!-- <Property Id="MSIDEPLOYMENTCOMPLIANT" Value="1" Secure="yes"/> -->
+
+    <!-- "in secure environments (corporate environments with users running without admin rights)
+         you need to add the ACTION property from the Upgrade table to the list of secure properties"
+           https://stackoverflow.com/questions/56989906/wix-does-not-uninstall-older-version/56991527 -->
+    <Property Id="ACTION" Secure="yes"/>
+
+    <Icon Id="netbeans.ico" SourceFile="netbeans.ico"/>
+    <!-- Icon for the Add/Remove Programs list.
+           https://wixtoolset.org/docs/v3/howtos/ui_and_localization/configure_arp_appearance/ -->
+    <Property Id="ARPPRODUCTICON" Value="netbeans.ico"/>
+    <Property Id="ARPURLINFOABOUT" Value="https://netbeans.apache.org/"/>
+
+    <!-- The tutorial at
+         https://www.firegiant.com/wix/tutorial/upgrades-and-modularization/replacing-ourselves/
+         is a bit outdated; use the MajorUpgrade element instead of explicit upgrade entries.
+         See https://wixtoolset.org/docs/v3/howtos/updates/major_upgrade/ -->
+    <!-- "You can remove files without worrying about component-rule violations if you use an
+         'early' scheduling of the RemoveExistingProducts standard action - before or immediately
+         after the InstallInitialize action."
+           https://www.joyofsetup.com/2008/12/30/paying-for-upgrades/
+         Before InstallInitialize is the same as after InstallValidate.
+           https://stackoverflow.com/questions/4970780/wix-action-sequence
+         -->
+    <MajorUpgrade IgnoreRemoveFailure="yes" Schedule="afterInstallInitialize"
+        AllowSameVersionUpgrades="no"
+        AllowDowngrades="no" DowngradeErrorMessage="A later version of [ProductName] is already installed."/>
+
+    <Media Id="1" Cabinet="NetBeans.cab" EmbedCab="yes"/>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <!-- See https://learn.microsoft.com/en-us/previous-versions//aa372057(v=vs.85) for a list of
+           built-in directory IDs. -->
+      <Directory Id="DesktopFolder"/>
+      <Directory Id="ProgramMenuFolder"/>
+
+      <!-- ProgramFiles64Folder will translate to %APPDATA%\Programs for our default values of
+           ALLUSERS and MSIINSTALLPERUSER. See
+           https://learn.microsoft.com/en-us/windows/win32/msi/installation-context -->
+      <Directory Id="ProgramFiles64Folder" Name="PFiles">
+        <Directory Id="INSTALLDIR" Name="NetBeans">
+          <Directory Id="NetBeansDirWithVersion" Name="netbeans-$(var.netbeansVersion)">
+            <!-- The bin\netbeans64.exe executable is listed manually here, so that we can use the
+                 standard mechanism for defining shortcuts. All other files are enumerated by
+                 heat.exe and included with the "netbeansFiles" reference in the main feature. -->
+            <!-- Give the manually specified "bin" directory a unique name that won't clash with any
+                 of the IDs generated by heat.exe . -->
+            <Directory Id="bin_launcher_wxs" Name="bin">
+              <Component Id="netbeans64.exe" Guid="*">
+                <File Id="netbeans64.exe" KeyPath="yes" Source="$(var.buildSourceDir)\bin\netbeans64.exe">
+                  <!-- Using advertised shortcuts here seems to play nicely with
+                       Single Package Authoring, avoiding any ICE warnings and questions about where
+                       to put the KeyPath and so on. -->
+                  <!-- An explicitly specified icon seems required for advertised shortcuts. -->
+                  <!-- Set WorkingDirectory just to standardize the execution environment a bit.
+                       There are no useful files in INSTALLDIR itself; they are in
+                       NetBeansDirWithVersion. -->
+                  <Shortcut Id="startmenuIcon" Directory="ProgramMenuFolder" Name="NetBeans"
+                      WorkingDirectory="INSTALLDIR" Icon="netbeans.ico" Advertise="yes"/>
+                  <Shortcut Id="desktopIcon" Directory="DesktopFolder" Name="NetBeans"
+                      WorkingDirectory="INSTALLDIR" Icon="netbeans.ico" Advertise="yes"/>
+                </File>
+              </Component>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="Complete" Title="NetBeans" Description="The complete application."
+        Display="expand" Level="1" ConfigurableDirectory="INSTALLDIR">
+      <ComponentRef Id="netbeans64.exe"/>
+      <ComponentGroupRef Id="netbeansFiles"/>
+    </Feature>
+
+    <!-- Instead of launching the application automatically on exit, tell the user where to find it,
+         so they remember it for the next time. I considered having checkboxes for creating Desktop
+         and Start Menu icons, to emphasize them further, but couldn't find a way to achieve this
+         without having to suppress ICE warnings (due to icons then having to be in separate
+         components, which would then need registry keys as key paths, which would then conflict
+         with per-machine vs. per-user validation rules). -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="You can now launch NetBeans from the Start Menu or the Desktop icon." />
+
+    <!-- See https://www.firegiant.com/wix/tutorial/user-interface/ui-wizardry/ -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR"/>
+    <!-- This element copied from
+         https://github.com/wixtoolset/wix3/blob/wix3112rtm/src/ext/UIExtension/wixlib/WixUI_InstallDir.wxs
+         as of 2022-11-29 (latest commit a83b213), then edited (with original elements commented).
+         See https://wixtoolset.org/docs/v3/wixui/wixui_customizations/ -->
+    <UI Id="WixUI_InstallDir">
+      <!-- The default font in Windows changed from Tahoma 11 to Segoe UI 12 since Windows Vista.
+           Adjust the font and size here without overfilling the premade form layout. -->
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Segoe UI" Size="9"/>
+      <!-- Used for the heading shown on the first screen (e.g. "Welcome to the X Setup Wizard"). -->
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Segoe UI" Size="15"/>
+      <!-- Used in the wizard step title. Use size 11 or less to avoid clipping descenders in the
+           "Ready to Install NetBeans" step. -->
+      <TextStyle Id="WixUI_Font_Title" FaceName="Segoe UI" Size="11"/>
+      <!--
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8"/>
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12"/>
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes"/>
+      -->
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal"/>
+      <Property Id="WixUI_Mode" Value="InstallDir"/>
+
+      <DialogRef Id="BrowseDlg"/>
+      <DialogRef Id="DiskCostDlg"/>
+      <DialogRef Id="ErrorDlg"/>
+      <DialogRef Id="FatalError"/>
+      <DialogRef Id="FilesInUse"/>
+      <DialogRef Id="MsiRMFilesInUse"/>
+      <DialogRef Id="PrepareDlg"/>
+      <DialogRef Id="ProgressDlg"/>
+      <DialogRef Id="ResumeDlg"/>
+      <DialogRef Id="UserExit"/>
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">NOT Installed</Publish>
+      <!--<Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>-->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+
+      <!--
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">LicenseAccepted = "1"</Publish>
+      -->
+
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <!--<Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>-->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1">NOT Installed</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+
+      <!-- Removes the "modify" option from the Add/Remove Programs list, since there are no
+           subcomponents to be modified (already part of the default WixUI_InstallDir template). -->
+      <Property Id="ARPNOMODIFY" Value="1"/>
+    </UI>
+    <UIRef Id="WixUI_Common"/>
+    <UIRef Id="WixUI_ErrorProgressText"/>
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp"/>
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp"/>
+
+    <!-- I considered removing the application-generated cache directory
+         (at %APPDATA%\Local\netbeans\Cache\xxx) on uninstall, but decided against it for several
+         reasons:
+         * The MSI design seems strongly biased towards removing only files that are created on
+           install.
+         * "It's not possible to remove files for all users, only for the user doing the uninstall.
+           (Even running as admin, the installer doesn't necessary have rights to the files in other
+           users' profiles. So MSI doesn't offer the option.)"
+           https://sourceforge.net/p/wix/mailman/message/20210746/
+         * Removing the cache directory would be a platform-specific behavior.
+         * There could probably be problems if the application is already running.
+         * The larger home directory would still be left behind in any case.
+         * The NetBeans Platform automatically clears the cache directory on every version change.
+         * A past bug necessitating a cache directory reset (NETBEANS-1914) is now fixed.
+     -->
+  </Product>
+</Wix>

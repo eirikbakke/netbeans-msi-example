@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Culture="en-us">
+  <!-- Make some of the strings shorter to fit on one line with the increased font size. Avoid
+       changing the terminology or message parameters, with some exceptions. -->
+
+  <!-- See https://wixtoolset.org/docs/v3/wixui/wixui_customizations/
+       The complete list of overridable strings are here:
+       https://github.com/wixtoolset/wix3/blob/wix3112rtm/src/ext/UIExtension/wixlib/WixUI_en-us.wxl -->
+
+  <!-- Change to fit on one line. Include the product version here since we omit it from ProductName. -->
+  <String Id="MaintenanceWelcomeDlgTitle">{\WixUI_Font_Bigger}[ProductName] [ProductVersion] Setup Wizard</String>
+  <String Id="PrepareDlgTitle">{\WixUI_Font_Bigger}[ProductName] [ProductVersion] Setup Wizard</String>
+  <String Id="WelcomeDlgTitle">{\WixUI_Font_Bigger}[ProductName] [ProductVersion] Setup Wizard</String>
+  <String Id="WelcomeDlgDescription">The Setup Wizard will install [ProductName] on your computer. Click Next to continue or Cancel to exit.</String>
+
+  <!-- Change to fit on one line with larger font. -->
+  <String Id="InstallDirDlgDescription">Click Next to install to the default folder or Change to choose another.</String>
+  <String Id="PrepareDlgDescription">Please wait while the Setup Wizard loads...</String>
+  <!-- Fine tune the wording of these messages a bit. The original strings and their localized
+       variants would still work fine. -->
+  <String Id="VerifyReadyDlgInstallText">Click Install to begin the installation. Click Back to review or change your installation settings. Click Cancel to exit.</String>
+  <String Id="VerifyReadyDlgRepairText">Click Repair to repair the installation of [ProductName]. Click Back to review options. Click Cancel to exit.</String>
+  <String Id="VerifyReadyDlgRemoveText">Click Remove to remove [ProductName] from your computer. Click Back to review options. Click Cancel to exit.</String>
+  <String Id="UserExitTitle">{\WixUI_Font_Bigger}The Setup Wizard was interrupted</String>
+  <String Id="UserExitDescription1">The setup was interrupted. Your system has not been modified. To install this program at a later time, please run the installation again.</String>
+  <String Id="MaintenanceWelcomeDlgDescription">The Setup Wizard lets you reinstall or uninstall [ProductName]. Click Next to continue or Cancel to exit.</String>
+
+  <!-- This dialog is shown after successful install, upgrade, or uninstall, so don't say
+       "installation successful" or such here. (The WIXUI_EXITDIALOGOPTIONALTEXT property is shown
+       after a successful installation only, however.) -->
+  <String Id="ExitDialogTitle">{\WixUI_Font_Bigger}Setup Complete</String>
+  <String Id="ExitDialogDescription">Click Finish to exit the Setup Wizard.</String>
+</WixLocalization>

@@ -1,0 +1,6 @@
+# Dummy file for MSI install build testing.
+
+extra
+ide
+java
+platform

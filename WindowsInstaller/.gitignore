@@ -1,0 +1,5 @@
+/NetBeans-files.wxs
+/*.wixobj
+/*.wixpdb
+/*.msi
+/DummyPayload/bin/netbeans64.exe

@@ -1,0 +1,85 @@
+name: Build Windows MSI Installer
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      ENV_FILE: release_variables.env
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+      - name: Import release variables
+        # I saw PowerShell take 20 seconds to start up, and buildmsi_ci.bat is a cmd script, so just stick to cmd.
+        shell: cmd
+        # PowerShell equivalent:
+        #type ${{ env.ENV_FILE }} | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+        run: |
+          type ${{ env.ENV_FILE }} >> ${{ github.env }}
+      - name: Set derived environment variables
+        shell: cmd
+        # Note: No space before ">>" after "echo".
+        run: |
+          echo TEMP_DIR=${{ github.workspace }}\CITemp>> ${{ github.env }}
+          echo WIX_BIN=${{ github.workspace }}\CITemp\wixbin>> ${{ github.env }}
+          echo PAYLOAD_PARENT_DIR=${{ github.workspace }}\CITemp\payload_parent>> ${{ github.env }}
+          if ${{ github.ref_name }} ==  releasebranch-${{ env.NETBEANS_VERSION }} echo NETBEANS_S3_BUCKET_OUTPUT=${{ env.NETBEANS_S3_BUCKET_OUTPUT_PROD }}>> ${{ github.env }}
+          if ${{ github.ref_name }} NEQ releasebranch-${{ env.NETBEANS_VERSION }} echo NETBEANS_S3_BUCKET_OUTPUT=${{ env.NETBEANS_S3_BUCKET_OUTPUT_DEV }}>> ${{ github.env }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          role-duration-seconds: 1200
+          role-to-assume: arn:aws:iam::999999999999:role/netbeans-github-actions
+      - name: Create temporary directories
+        shell: cmd
+        run: |
+          mkdir ${{ env.TEMP_DIR }}
+          mkdir ${{ env.WIX_BIN }}
+          mkdir ${{ env.PAYLOAD_PARENT_DIR }}
+      - name: Download and extract WiX Binaries
+        shell: cmd
+        run: |
+          aws s3 cp --no-progress "s3://${{ env.NETBEANS_S3_BUCKET_PREBUILT }}/prebuilt/tools/wix-${{ env.WIX_VERSION }}.zip" "${{ env.TEMP_DIR }}\wixbin.zip"
+          cd "${{ env.WIX_BIN }}"
+          tar -xzf "${{ env.TEMP_DIR }}\wixbin.zip"
+      - name: Download and extract installer payload
+        shell: cmd
+        run: |
+          aws s3 cp --no-progress "s3://${{ env.NETBEANS_S3_BUCKET_OUTPUT }}/releases/${{ env.NETBEANS_VERSION }}/netbeans-${{ env.NETBEANS_VERSION }}-win_x64.zip" "${{ env.TEMP_DIR }}\payload.zip"
+          cd "${{ env.PAYLOAD_PARENT_DIR }}"
+          tar -xzf "${{ env.TEMP_DIR }}\payload.zip"
+          move "${{ env.PAYLOAD_PARENT_DIR }}\netbeans-${{ env.NETBEANS_VERSION }}" "${{ env.PAYLOAD_PARENT_DIR }}\netbeans"
+          echo PAYLOAD_DIR=${{ env.PAYLOAD_PARENT_DIR }}\netbeans>> ${{ github.env }}
+      - name: Build MSI installer
+        shell: cmd
+        run: |
+          call ${{ github.workspace }}\WindowsInstaller\buildmsi_ci.bat
+      - name: Sign MSI installer
+        uses: azure/trusted-signing-action@v0.4.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: NetBeansSigningAcct
+          certificate-profile-name: NetBeansSigningCertProfile
+          files: ${{ github.workspace }}\WindowsInstaller\netbeans-${{ env.NETBEANS_VERSION }}-win_x64.msi
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - name: Upload MSI installer
+        shell: cmd
+        run: |
+          aws s3 cp --no-progress "${{ github.workspace }}\WindowsInstaller\netbeans-${{ env.NETBEANS_VERSION }}-win_x64.msi" "s3://${{ env.NETBEANS_S3_BUCKET_OUTPUT }}/releases/${{ env.NETBEANS_VERSION }}/netbeans-${{ env.NETBEANS_VERSION }}-win_x64.msi"
